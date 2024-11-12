@@ -5,32 +5,55 @@ from tkinter import scrolledtext
 import threading
 import os
 
-# Base URL for subdomain search
-url_base = "https://knowyourmeme.com/memes/"
+# Base URL for meme search
+url_base = "https://knowyourmeme.com/categories/meme/page/{}/?status=all"
 
-# Path for the output file
-output_file = r"C:\Users\Desktop\sub_domains.txt"
+# Output file path
+output_file = "sous_domaines.txt"
 
-# File to save the state of the last processed page
-state_file = r"C:\Users\Desktop\program_state.txt"
+# File to save the last page state
+state_file = "etat_programme.txt"
 
 # File to save pages with no subdomains
-not_found_file = r"C:\User\Desktop\not_found.txt"
+not_found_file = "pas_trouves.txt"
 
 # List of subdomains to ignore
-subdomains_to_ignore = [
-    'researching', 
-    'submissions', 
+ignored_subdomains = [
+    'researching',  
     'new?guidelines=1', 
     'guidelines',
-    'popular'
+    'popular',
+    "2024-united-states-presidential-election--3",
+    "akakichi-no-eleven-redraws",
+    "all",
+    "deadpool",
+    "events",
+    "jeremy-fragrance-hyperborea-dance",
+    "luce-the-vaticans-anime-mascot",
+    "man-laughing-at-a-whistle",
+    "newsworthy",
+    "subcultures",
+    "yoru-cake-panel",
+    "hoopla",
+    "nanalan",
+    "cultures",
+    "events",
+    "people",
+    "sites",
+    "subcultures",
+    "researching",
+    "popular",
+    "new?guidelines=1",
+    "some-guy-the-guy",
+    "photos",
+    "%"
 ]
 
 # Global variables for pagination and current state
 page_num = 1
 subdomains = set()
 
-# ASCII Art to be added at the beginning of the sub_domains.txt file
+# ASCII Art to add at the beginning of sous_domaines.txt
 ascii_art = """
 ___  ___                     ______          _            
 |  \/  |                     | ___ \        | |           
@@ -38,7 +61,6 @@ ___  ___                     ______          _
 | |\/| |/ _ \ '_ ` _ \ / _ \ |    // _` |/ _` |/ _` | '__| 
 | |  | |  __/ | | | | |  __/ | |\ \ (_| | (_| | (_| | |   
 \_|  |_/\___|_| |_| |_|\___| \_| \_\__,_|\__,_|\__,_|_|   
-                                                          
                                                           
 """
 
@@ -50,9 +72,9 @@ def load_state():
             try:
                 page_num = int(f.read().strip())
             except ValueError:
-                page_num = 1  # If the file is empty or corrupted, start from page 1
+                page_num = 1  # Start from page 1 if file is empty or corrupted
 
-# Function to save the state of the last processed page
+# Function to save the last processed page number
 def save_state():
     with open(state_file, "w") as f:
         f.write(str(page_num))
@@ -60,77 +82,77 @@ def save_state():
 # Function to get subdomains and handle pagination
 def get_subdomains(url):
     global page_num
-    while True:
-        # Create the URL for the current page with pagination
-        page_url = f"{url}page/{page_num}/"
-        print(f"Fetching data from: {page_url}")
+    while page_num <= 2605:  # Limit loop to 2605 pages
+        # Create URL for the current page with pagination
+        url_page = url.format(page_num)
+        print(f"Fetching data from: {url_page}")
 
-        # Send a GET request to get the page content
-        response = requests.get(page_url)
+        # Send GET request to fetch page content
+        response = requests.get(url_page)
         
         if response.status_code != 200:
-            print(f"Error in request: {response.status_code}")
+            print(f"Error during request: {response.status_code}")
             break
 
         # Parse the page content with BeautifulSoup
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # Find all the links on the page
+        # Find all links on the page
         links = soup.find_all('a', href=True)
 
-        # Extract and filter the subdomains
+        # Extract and filter subdomains
         new_subdomains = set()
         for link in links:
             href = link['href']
-            # Ignore links containing "/all", "/page", or those in the ignore list
-            if '/memes/' in href and not any(x in href for x in ['/all', '/page']) and not any(ignored in href for ignored in subdomains_to_ignore):
+            # Ignore links containing "/all", "/page" or those in the ignore list
+            if '/memes/' in href and not any(x in href for x in ['/all', '/page']) and not any(ignored in href for ignored in ignored_subdomains):
                 # Remove the '/memes/' prefix to keep only the subdomain part
                 subdomain = href.split('/memes/')[1]  # Keep everything after '/memes/'
                 new_subdomains.add(subdomain)
 
-        # Add the new subdomains to the global set
+        # Add newly found subdomains to the global set
         if new_subdomains:
-            # Load existing subdomains from the file
+            # Load existing subdomains from the output file
             existing_subdomains = set()
             if os.path.exists(output_file):
                 with open(output_file, "r") as f:
                     existing_subdomains = set(f.read().splitlines())
 
-            # Filter out subdomains that are already in the file
+            # Filter out subdomains already in the file
             subdomains_to_add = new_subdomains - existing_subdomains
             subdomains_already_found = new_subdomains & existing_subdomains
 
-            # Check if the file is empty and add ASCII Art
+            # Check if the output file is empty and add ASCII art
             if not os.path.exists(output_file) or os.stat(output_file).st_size == 0:
                 with open(output_file, "a") as f:
                     f.write(ascii_art)
 
             if subdomains_to_add:
-                # Add the filtered subdomains to the output file
+                # Write filtered subdomains to the output file
                 with open(output_file, "a") as f:
                     for subdomain in subdomains_to_add:
-                        f.write(f"{subdomain}\n")  # Write only the subdomain, not the base URL
+                        f.write(f"{subdomain}\n")  # Write only the subdomain, without the base URL
 
-                # Display the subdomains in the Tkinter window
+                # Display subdomains in Tkinter window
                 display_subdomains(subdomains_to_add)
             
             # Display subdomains already found in the Tkinter window
             if subdomains_already_found:
-                display_subdomains([f"{subdomain} - already found domain" for subdomain in subdomains_already_found])
+                display_subdomains([f"{subdomain} - already found" for subdomain in subdomains_already_found])
 
         else:
-            # If no subdomains found, add the page number to the "not_found.txt" file
+            # If no subdomains found, log the page number in "pas_trouves.txt"
             with open(not_found_file, "a") as f:
-                f.write(f"Page {page_num} : No subdomain found\n")
+                f.write(f"Page {page_num} : No subdomains found\n")
             print(f"No subdomains found on page {page_num}.")
 
-        # Save the state after processing each page
+        # Save state after each page is processed
         save_state()
 
         # Increment the page number for pagination
         page_num += 1
 
-# Function to display the subdomains in the Tkinter window
+# Function to display subdomains in the Tkinter window
 def display_subdomains(new_subdomains):
     for subdomain in new_subdomains:
         text_area.insert(tk.END, f"{subdomain}\n")
@@ -140,23 +162,23 @@ def display_subdomains(new_subdomains):
 def stop_program():
     root.quit()
 
-# Create the Tkinter window with Dark Mode
+# Create Tkinter window with Dark Mode
 root = tk.Tk()
 root.title("Found Subdomains")
 root.config(bg='#2e2e2e')  # Dark background color
 
-# Create a scrolled text area
+# Create a scrolling text area
 text_area = scrolledtext.ScrolledText(root, width=80, height=20, bg='#333333', fg='#ffffff', font=('Arial', 10))
 text_area.pack(padx=10, pady=10)
 
-# Add a stop button
+# Add a button to stop the program
 button_stop = tk.Button(root, text="Stop", command=stop_program, bg='#555555', fg='#ffffff', font=('Arial', 12))
 button_stop.pack(pady=10)
 
-# Load the program state at startup
+# Load program state on startup
 load_state()
 
-# Start the data retrieval in a thread to prevent blocking the interface
+# Start fetching in a separate thread to prevent UI blocking
 thread = threading.Thread(target=get_subdomains, args=(url_base,))
 thread.start()
 
