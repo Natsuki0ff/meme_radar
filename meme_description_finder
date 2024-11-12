@@ -1,0 +1,108 @@
+import requests
+from bs4 import BeautifulSoup
+import os
+import re
+import json
+
+# Path to the subdomains file
+subdomains_path = "sous_domaines.txt"  # Change to relative path for GitHub compatibility
+
+# Loading the subdomains from the file
+try:
+    with open(subdomains_path, "r", encoding="utf-8") as file:
+        subdomains = file.readlines()
+    print(f"File '{subdomains_path}' loaded successfully.")
+except FileNotFoundError:
+    print(f"Error: File '{subdomains_path}' not found.")
+    exit()
+
+# Base URL for the memes
+base_url = "https://knowyourmeme.com/memes/"
+
+# Creating output paths for the files
+output_file_path = os.path.join(os.path.dirname(subdomains_path), "meme_info.txt")
+notfound_file_path = os.path.join(os.path.dirname(subdomains_path), "texte_notfound.txt")
+
+# Function to clean up text (removes ASCII art and 'warning' sentences)
+def clean_text(text):
+    text = re.sub(r'[\█\▀\▄\█]+', '', text)  # Remove ASCII art
+    sentences = text.split('. ')
+    filtered_sentences = [sentence for sentence in sentences if "warning" not in sentence.lower()]
+    text = '. '.join(filtered_sentences).replace('\n', ' ').strip()
+    return text
+
+# Function to extract meme information from a page
+def extract_meme_info(url, is_event):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        print(f"Access to {url} successful.")
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        if is_event:
+            script_tag = soup.find('script', type='application/ld+json')
+            if script_tag:
+                try:
+                    data = json.loads(script_tag.string)
+                    headline = data.get("headline", "")
+                    description = data.get("description", "")
+                    cleaned_text = clean_text(f"{headline}\n\n{description}")
+                    return cleaned_text.strip()
+                except json.JSONDecodeError:
+                    print("JSON parsing error for 'application/ld+json'. Ignored.")
+                    return None
+
+        about_section = soup.find('section', class_='bodycopy')
+        if about_section:
+            paragraphs = about_section.find_all('p')
+            meme_text = ""
+            for para in paragraphs:
+                text = para.get_text()
+                sentences = text.split('. ')
+                filtered_sentences = [sentence for sentence in sentences if not re.search(r'\[\d+\]', sentence)]
+                meme_text += '. '.join(filtered_sentences) + " "
+            return clean_text(meme_text.strip()) if meme_text else None
+        else:
+            return None
+    except requests.HTTPError as e:
+        if e.response.status_code == 410:
+            print(f"Page removed or unavailable (410) for URL: {url}. Ignored.")
+            return None
+        else:
+            print(f"Error fetching page: {e}")
+            return None
+
+# Function to format the subdomain string
+def format_subdomain(subdomain):
+    subdomain = subdomain.replace("-", " ").replace("_", " ")
+    subdomain = subdomain.title()
+    return subdomain
+
+# Initializing the counter
+counter = 292
+
+# Opening the output files for writing the results and the non-found links
+with open(output_file_path, "w", encoding="utf-8") as output, open(notfound_file_path, "w", encoding="utf-8") as notfound_output:
+    for subdomain in subdomains:
+        subdomain = subdomain.strip()
+        if subdomain:
+            formatted_subdomain = format_subdomain(subdomain)
+            url = base_url + subdomain
+            print(f"Processing {formatted_subdomain}...")
+            is_event = "/events" in url
+            meme_info = extract_meme_info(url, is_event)
+            
+            formatted_url = f"{counter}. **{formatted_subdomain}**: "
+            
+            if meme_info:
+                output.write(f"{formatted_url}{meme_info}\n\n")
+                print(f"Information for '{formatted_subdomain}' added to the file.")
+                counter += 1
+            else:
+                notfound_output.write(f"{formatted_url}Unavailable.\n")
+                print(f"No information found for '{formatted_subdomain}', added to texte_notfound.txt.")
+                counter += 1
+
+print(f"\nInformation extracted and saved to '{output_file_path}'.")
+print(f"Links with no information saved to '{notfound_file_path}'.")
