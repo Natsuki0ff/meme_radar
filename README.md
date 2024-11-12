@@ -1,4 +1,3 @@
-```markdown
 # Meme Subdomain Scraper 🕵️‍♂️🌐
 
 This Python program scrapes and collects subdomains from **Know Your Meme**. It processes multiple pages of meme categories, filters unwanted content, and saves the results in a text file. The program uses Tkinter to display the found subdomains in a graphical interface.
