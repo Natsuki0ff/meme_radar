@@ -1,7 +1,3 @@
-Here's an updated version of your README with some emojis added for a more engaging touch:
-
----
-
 # Meme Radar Program 🚨
 
 This program scans all the sub-domains of **KnowYourMeme**, giving you an overview of all the memes created since the history of mankind. 🌐😂  
